@@ -1,36 +1,35 @@
 """
-Main Streamlit application for RPT 600 and RPT 908 SOP processing
+Streamlit Cloud entry point for Cancellations SOP Processor
+This file is specifically designed for Streamlit Cloud deployment
 """
 
 import logging
 import os
+import sys
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 import pandas as pd
 import streamlit as st
 
-# Use absolute imports for Streamlit Cloud deployment
-try:
-    from config import config
-    from utils import create_output_directory, format_currency, setup_logging
-except ImportError:
-    # Fallback for local development
-    from .config import config
-    from .utils import create_output_directory, format_currency, setup_logging
+# Add the src/app directory to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src', 'app'))
+
+# Now import the modules
+from config import config
+from utils import create_output_directory, format_currency, setup_logging
 
 # Configure logging
 setup_logging(config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
-# Page configuration
+# Configure Streamlit page
 st.set_page_config(
     page_title=config.APP_NAME,
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
 
 class ReportProcessor:
     """Handles processing of RPT 600 and RPT 908 reports"""
@@ -103,7 +102,6 @@ class ReportProcessor:
     def process_rpt600(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Process RPT600 Payee Statement report"""
         try:
-            # Extract key information
             summary = {
                 "total_records": len(df),
                 "unique_payees": (
@@ -162,7 +160,6 @@ class ReportProcessor:
     def process_rpt908(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Process RPT908 Cancellation report"""
         try:
-            # Extract key information
             summary = {
                 "total_records": len(df),
                 "cancellation_reasons": {},
