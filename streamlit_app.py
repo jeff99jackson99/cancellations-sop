@@ -302,12 +302,99 @@ def main():
 
     # Sidebar
     st.sidebar.header("Report Upload")
-    uploaded_files = st.sidebar.file_uploader(
-        "Choose report files (you can select multiple)",
-        type=["csv", "xlsx"],
-        accept_multiple_files=True,
-        help="Upload multiple RPT600 or RPT908 report files. You can select several files at once."
-    )
+    
+    # Tabbed interface for different upload methods
+    upload_tab1, upload_tab2 = st.sidebar.tabs(["📁 Multiple Files", "🏷️ Named Uploads"])
+    
+    with upload_tab1:
+        uploaded_files = st.file_uploader(
+            "Choose report files (you can select multiple)",
+            type=["csv", "xlsx"],
+            accept_multiple_files=True,
+            help="Upload multiple RPT600 or RPT908 report files. You can select several files at once."
+        )
+    
+    with upload_tab2:
+        st.markdown("**Upload files with specific names:**")
+        
+        # Named upload sections
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**RPT600 Files:**")
+            rpt600_file1 = st.file_uploader(
+                "RPT600 - Payee Statement 1",
+                type=["csv", "xlsx"],
+                key="rpt600_1",
+                help="Upload first RPT600 file"
+            )
+            rpt600_file2 = st.file_uploader(
+                "RPT600 - Payee Statement 2", 
+                type=["csv", "xlsx"],
+                key="rpt600_2",
+                help="Upload second RPT600 file"
+            )
+            rpt600_file3 = st.file_uploader(
+                "RPT600 - Payee Statement 3",
+                type=["csv", "xlsx"], 
+                key="rpt600_3",
+                help="Upload third RPT600 file"
+            )
+        
+        with col2:
+            st.markdown("**RPT908 Files:**")
+            rpt908_file1 = st.file_uploader(
+                "RPT908 - Cancellation 1",
+                type=["csv", "xlsx"],
+                key="rpt908_1",
+                help="Upload first RPT908 file"
+            )
+            rpt908_file2 = st.file_uploader(
+                "RPT908 - Cancellation 2",
+                type=["csv", "xlsx"],
+                key="rpt908_2", 
+                help="Upload second RPT908 file"
+            )
+            rpt908_file3 = st.file_uploader(
+                "RPT908 - Cancellation 3",
+                type=["csv", "xlsx"],
+                key="rpt908_3",
+                help="Upload third RPT908 file"
+            )
+        
+        # Additional named uploads
+        st.markdown("**Other Files:**")
+        other_file1 = st.file_uploader(
+            "Additional Report 1",
+            type=["csv", "xlsx"],
+            key="other_1",
+            help="Upload any other report file"
+        )
+        other_file2 = st.file_uploader(
+            "Additional Report 2", 
+            type=["csv", "xlsx"],
+            key="other_2",
+            help="Upload any other report file"
+        )
+        
+        # Collect all named files
+        named_files = []
+        if rpt600_file1:
+            named_files.append(("RPT600 - Payee Statement 1", rpt600_file1, "RPT600"))
+        if rpt600_file2:
+            named_files.append(("RPT600 - Payee Statement 2", rpt600_file2, "RPT600"))
+        if rpt600_file3:
+            named_files.append(("RPT600 - Payee Statement 3", rpt600_file3, "RPT600"))
+        if rpt908_file1:
+            named_files.append(("RPT908 - Cancellation 1", rpt908_file1, "RPT908"))
+        if rpt908_file2:
+            named_files.append(("RPT908 - Cancellation 2", rpt908_file2, "RPT908"))
+        if rpt908_file3:
+            named_files.append(("RPT908 - Cancellation 3", rpt908_file3, "RPT908"))
+        if other_file1:
+            named_files.append(("Additional Report 1", other_file1, "Unknown"))
+        if other_file2:
+            named_files.append(("Additional Report 2", other_file2, "Unknown"))
 
     # Configuration info
     with st.sidebar.expander("Configuration"):
@@ -316,134 +403,239 @@ def main():
             st.text(f"{key}: {value}")
 
     # Main content area
+    all_files = []
+    
+    # Add multiple files from tab 1
     if uploaded_files:
+        for i, file in enumerate(uploaded_files):
+            all_files.append((f"Multiple Upload {i+1}: {file.name}", file, "Auto-detect"))
+    
+    # Add named files from tab 2
+    all_files.extend(named_files)
+    
+    if all_files:
         st.header("Report Processing")
         
         # Show uploaded files summary
-        st.info(f"📁 **{len(uploaded_files)} file(s) uploaded**")
+        st.info(f"📁 **{len(all_files)} file(s) ready for processing**")
         
-        # Process each file
-        for i, uploaded_file in enumerate(uploaded_files):
-            st.subheader(f"File {i+1}: {uploaded_file.name}")
+        # Batch processing option
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.markdown("**Individual Processing:** Process each file separately below")
+        with col2:
+            if st.button("🚀 Process All Files", type="primary", use_container_width=True):
+                st.session_state.batch_processing = True
+                st.rerun()
+        
+        # Show batch processing results if enabled
+        if hasattr(st.session_state, 'batch_processing') and st.session_state.batch_processing:
+            st.success("🔄 **Batch Processing Mode Active** - Processing all files...")
             
-            # Save uploaded file temporarily
-            temp_path = f"temp_{uploaded_file.name}_{i}"
-            with open(temp_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-
-            try:
-                # Validate report
-                validation_result = st.session_state.processor.validate_report(temp_path)
-
-                if validation_result["valid"]:
-                    st.success("✅ File validated successfully!")
-                    st.info(f"**Report Type:** {validation_result['report_type']}")
-                    st.info(f"**Records:** {validation_result['row_count']:,}")
-                    st.info(
-                        f"**Columns:** {', '.join(validation_result['columns'][:10])}{'...' if len(validation_result['columns']) > 10 else ''}"
-                    )
-
-                    # Process button for this specific file
-                    if st.button(f"🚀 Process {uploaded_file.name}", key=f"process_{i}", type="primary"):
-                        with st.spinner(f"Processing {uploaded_file.name}..."):
-                            # Read the file
-                            if uploaded_file.name.endswith(".csv"):
-                                df = pd.read_csv(temp_path)
-                            else:
-                                df = pd.read_excel(temp_path)
-
-                            # Execute SOP workflow
-                            result = st.session_state.processor.execute_sop_workflow(
-                                validation_result["report_type"], df
-                            )
-
-                            if result["success"]:
-                                st.success(f"✅ {uploaded_file.name} processed successfully!")
-
-                                # Display summary
-                                st.subheader(f"Processing Summary - {uploaded_file.name}")
-                                summary = result["summary"]
-
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    st.metric(
-                                        "Total Records", f"{summary['total_records']:,}"
-                                    )
-                                    if "unique_payees" in summary:
-                                        st.metric("Unique Payees", summary["unique_payees"])
-                                    if "unique_dealers" in summary:
-                                        st.metric(
-                                            "Unique Dealers", summary["unique_dealers"]
-                                        )
-
-                                with col2:
-                                    if (
-                                        "total_amount" in summary
-                                        and summary["total_amount"] > 0
-                                    ):
-                                        st.metric(
-                                            "Total Amount",
-                                            format_currency(summary["total_amount"]),
-                                        )
-                                    if (
-                                        "total_refund_amount" in summary
-                                        and summary["total_refund_amount"] > 0
-                                    ):
-                                        st.metric(
-                                            "Total Refund Amount",
-                                            format_currency(summary["total_refund_amount"]),
-                                        )
-                                    if "date_range" in summary and summary["date_range"]:
-                                        st.metric("Date Range", summary["date_range"])
-
-                                # Display preview data
-                                st.subheader(f"Data Preview - {uploaded_file.name}")
-                                preview_df = pd.DataFrame(result["data"])
-                                st.dataframe(preview_df, use_container_width=True)
-
-                            else:
-                                st.error(f"❌ Processing failed: {result['error']}")
-
-                else:
-                    st.error(f"❌ File validation failed: {validation_result['error']}")
-                    
-                    # Show more details about why validation failed
-                    if "Could not determine report type" in validation_result['error']:
-                        st.warning("💡 **Tip:** Make sure your file has columns that indicate the report type:")
-                        st.markdown("""
-                        **For RPT600 (Payee Statement):**
-                        - Look for columns like: `Payee`, `Commission`, `Dealer`, `Fee`
+            batch_results = []
+            for i, (file_name, uploaded_file, expected_type) in enumerate(all_files):
+                temp_path = f"temp_batch_{uploaded_file.name}_{i}"
+                with open(temp_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+                
+                try:
+                    # Validate and process
+                    validation_result = st.session_state.processor.validate_report(temp_path)
+                    if validation_result["valid"]:
+                        if uploaded_file.name.endswith(".csv"):
+                            df = pd.read_csv(temp_path)
+                        else:
+                            df = pd.read_excel(temp_path)
                         
-                        **For RPT908 (Cancellation Report):**
-                        - Look for columns like: `Cancellation_Reason`, `Contract`, `Refund_Amount`
-                        """)
+                        result = st.session_state.processor.execute_sop_workflow(
+                            validation_result["report_type"], df
+                        )
                         
-                        # Show the actual columns in the file
-                        try:
-                            if uploaded_file.name.endswith(".csv"):
-                                df = pd.read_csv(temp_path)
-                            else:
-                                df = pd.read_excel(temp_path)
+                        batch_results.append({
+                            "File": file_name,
+                            "Type": validation_result["report_type"],
+                            "Records": validation_result["row_count"],
+                            "Status": "✅ Success" if result["success"] else "❌ Failed",
+                            "Message": result.get("error", "Processed successfully")
+                        })
+                    else:
+                        batch_results.append({
+                            "File": file_name,
+                            "Type": "Unknown",
+                            "Records": 0,
+                            "Status": "❌ Validation Failed",
+                            "Message": validation_result["error"]
+                        })
+                except Exception as e:
+                    batch_results.append({
+                        "File": file_name,
+                        "Type": "Error",
+                        "Records": 0,
+                        "Status": "❌ Error",
+                        "Message": str(e)
+                    })
+                finally:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+            
+            # Display batch results
+            st.subheader("📊 Batch Processing Results")
+            batch_df = pd.DataFrame(batch_results)
+            st.dataframe(batch_df, use_container_width=True)
+            
+            # Summary statistics
+            successful = len([r for r in batch_results if "✅" in r["Status"]])
+            failed = len([r for r in batch_results if "❌" in r["Status"]])
+            total_records = sum([r["Records"] for r in batch_results if isinstance(r["Records"], int)])
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Successful", successful)
+            with col2:
+                st.metric("Failed", failed)
+            with col3:
+                st.metric("Total Records", f"{total_records:,}")
+            
+            # Reset batch processing
+            if st.button("🔄 Process Again", use_container_width=True):
+                st.session_state.batch_processing = False
+                st.rerun()
+        
+        # Individual file processing
+        if not (hasattr(st.session_state, 'batch_processing') and st.session_state.batch_processing):
+            st.markdown("---")
+            st.subheader("📋 Individual File Processing")
+            
+            # Process each file
+            for i, (file_name, uploaded_file, expected_type) in enumerate(all_files):
+                st.subheader(f"📄 {file_name}")
+                
+                # Show expected type if known
+                if expected_type != "Unknown":
+                    st.info(f"**Expected Type:** {expected_type}")
+                
+                # Save uploaded file temporarily
+                temp_path = f"temp_{uploaded_file.name}_{i}"
+                with open(temp_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+
+                try:
+                    # Validate report
+                    validation_result = st.session_state.processor.validate_report(temp_path)
+
+                    if validation_result["valid"]:
+                        st.success("✅ File validated successfully!")
+                        st.info(f"**Detected Type:** {validation_result['report_type']}")
+                        st.info(f"**Records:** {validation_result['row_count']:,}")
+                        st.info(
+                            f"**Columns:** {', '.join(validation_result['columns'][:10])}{'...' if len(validation_result['columns']) > 10 else ''}"
+                        )
+                        
+                        # Show type comparison if expected type was specified
+                        if expected_type != "Unknown" and expected_type != validation_result['report_type']:
+                            st.warning(f"⚠️ **Type Mismatch:** Expected {expected_type}, but detected {validation_result['report_type']}")
+
+                        # Process button for this specific file
+                        if st.button(f"🚀 Process {file_name}", key=f"process_{i}", type="primary"):
+                            with st.spinner(f"Processing {file_name}..."):
+                                # Read the file
+                                if uploaded_file.name.endswith(".csv"):
+                                    df = pd.read_csv(temp_path)
+                                else:
+                                    df = pd.read_excel(temp_path)
+
+                                # Execute SOP workflow
+                                result = st.session_state.processor.execute_sop_workflow(
+                                    validation_result["report_type"], df
+                                )
+
+                                if result["success"]:
+                                    st.success(f"✅ {file_name} processed successfully!")
+
+                                    # Display summary
+                                    st.subheader(f"Processing Summary - {file_name}")
+                                    summary = result["summary"]
+
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.metric(
+                                            "Total Records", f"{summary['total_records']:,}"
+                                        )
+                                        if "unique_payees" in summary:
+                                            st.metric("Unique Payees", summary["unique_payees"])
+                                        if "unique_dealers" in summary:
+                                            st.metric(
+                                                "Unique Dealers", summary["unique_dealers"]
+                                            )
+
+                                    with col2:
+                                        if (
+                                            "total_amount" in summary
+                                            and summary["total_amount"] > 0
+                                        ):
+                                            st.metric(
+                                                "Total Amount",
+                                                format_currency(summary["total_amount"]),
+                                            )
+                                        if (
+                                            "total_refund_amount" in summary
+                                            and summary["total_refund_amount"] > 0
+                                        ):
+                                            st.metric(
+                                                "Total Refund Amount",
+                                                format_currency(summary["total_refund_amount"]),
+                                            )
+                                        if "date_range" in summary and summary["date_range"]:
+                                            st.metric("Date Range", summary["date_range"])
+
+                                    # Display preview data
+                                    st.subheader(f"Data Preview - {file_name}")
+                                    preview_df = pd.DataFrame(result["data"])
+                                    st.dataframe(preview_df, use_container_width=True)
+
+                                else:
+                                    st.error(f"❌ Processing failed: {result['error']}")
+
+                    else:
+                        st.error(f"❌ File validation failed: {validation_result['error']}")
+                        
+                        # Show more details about why validation failed
+                        if "Could not determine report type" in validation_result['error']:
+                            st.warning("💡 **Tip:** Make sure your file has columns that indicate the report type:")
+                            st.markdown("""
+                            **For RPT600 (Payee Statement):**
+                            - Look for columns like: `Payee`, `Commission`, `Dealer`, `Fee`
                             
-                            st.info(f"**Columns found in your file:** {', '.join(df.columns)}")
-                        except:
-                            pass
+                            **For RPT908 (Cancellation Report):**
+                            - Look for columns like: `Cancellation_Reason`, `Contract`, `Refund_Amount`
+                            """)
+                            
+                            # Show the actual columns in the file
+                            try:
+                                if uploaded_file.name.endswith(".csv"):
+                                    df = pd.read_csv(temp_path)
+                                else:
+                                    df = pd.read_excel(temp_path)
+                                
+                                st.info(f"**Columns found in your file:** {', '.join(df.columns)}")
+                            except:
+                                pass
 
-            except Exception as e:
-                st.error(f"❌ Error processing file: {str(e)}")
-                logger.error(f"Error in main: {str(e)}")
+                except Exception as e:
+                    st.error(f"❌ Error processing file: {str(e)}")
+                    logger.error(f"Error in main: {str(e)}")
 
-            finally:
-                # Clean up temp file
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-            
-            # Add separator between files
-            if i < len(uploaded_files) - 1:
-                st.markdown("---")
+                finally:
+                    # Clean up temp file
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                
+                # Add separator between files
+                if i < len(all_files) - 1:
+                    st.markdown("---")
 
     else:
-        st.info("👆 Please upload report files using the sidebar. You can select multiple files at once!")
+        st.info("👆 Please upload report files using the sidebar tabs above. You can use either multiple file upload or named uploads!")
 
         # Display processing history
         if st.session_state.processor.processed_reports:
